@@ -5,7 +5,7 @@ pages_build_output_dir = "public"
 [[d1_databases]]
 binding = "DB"
 database_name = "bachelor-trip-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "c749fa37-1cb8-4233-bd7d-7b8ed0cab1ff"
 
 [vars]
 ADMIN_PASSWORD = "thecurlybabus"
