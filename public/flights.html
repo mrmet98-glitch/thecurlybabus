@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flight Board — The Curly Babus</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    .fids-filter-bar{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+    .type-toggle{display:flex;gap:2px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:3px}
+    .type-btn{padding:6px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:none;color:var(--text-2);background:transparent;transition:all .15s;font-family:var(--font-body)}
+    .type-btn.active{background:var(--bg-active);color:var(--text-1)}
+    .fids-stats{display:flex;gap:18px;padding:14px 24px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;margin-bottom:18px;flex-wrap:wrap}
+    .fids-stat{display:flex;flex-direction:column;gap:2px}
+    .fids-stat-val{font-family:var(--font-mono);font-size:20px;font-weight:700;color:var(--text-1)}
+    .fids-stat-lbl{font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.8px}
+    .live-section{display:flex;align-items:center;gap:10px;padding:10px 18px;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.15);border-radius:8px;margin-bottom:16px}
+    .live-section p{font-size:12px;color:var(--text-2)}
+    .refresh-btn{font-size:11px;color:var(--green);cursor:pointer;background:none;border:1px solid rgba(16,185,129,.3);padding:4px 10px;border-radius:4px;font-family:var(--font-mono)}
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <div id="nav-placeholder"></div>
+  <main class="main-content">
+    <div class="page-header">
+      <div>
+        <div class="page-title">✈ Flight Board</div>
+        <div class="page-subtitle">All trip flights — FIDS view</div>
+      </div>
+      <div class="flex gap-2 items-center">
+        <button class="btn btn-ghost btn-sm" onclick="load()">↻ Refresh</button>
+        <button class="btn btn-primary" onclick="openAddFlightModal()">+ Add Flight</button>
+      </div>
+    </div>
+
+    <div id="live-section" class="live-section hidden">
+      <div class="live-badge">LIVE DATA</div>
+      <p>Flights within 48 hours — pulling live status from AviationStack</p>
+      <button class="refresh-btn" onclick="refreshLiveAll()">Refresh All</button>
+    </div>
+
+    <div class="fids-stats" id="board-stats">
+      <div class="fids-stat"><div class="fids-stat-val" id="bs-total">—</div><div class="fids-stat-lbl">Total Flights</div></div>
+      <div class="fids-stat"><div class="fids-stat-val" id="bs-inbound">—</div><div class="fids-stat-lbl">Arrivals</div></div>
+      <div class="fids-stat"><div class="fids-stat-val" id="bs-outbound">—</div><div class="fids-stat-lbl">Departures</div></div>
+      <div class="fids-stat"><div class="fids-stat-val" id="bs-pax">—</div><div class="fids-stat-lbl">Travelers</div></div>
+      <div class="fids-stat"><div class="fids-stat-val text-green" id="bs-ontime">—</div><div class="fids-stat-lbl">On Time</div></div>
+      <div class="fids-stat"><div class="fids-stat-val text-amber" id="bs-delayed">—</div><div class="fids-stat-lbl">Delayed</div></div>
+      <div class="fids-stat"><div class="fids-stat-val text-accent" id="bs-inair">—</div><div class="fids-stat-lbl">In Air</div></div>
+    </div>
+
+    <div class="fids-filter-bar">
+      <div class="type-toggle">
+        <button class="type-btn active" onclick="setFilter('all',this)">All</button>
+        <button class="type-btn" onclick="setFilter('inbound',this)">Arrivals</button>
+        <button class="type-btn" onclick="setFilter('outbound',this)">Departures</button>
+      </div>
+      <select id="date-filter" onchange="renderBoard()" style="max-width:160px">
+        <option value="">All Dates</option>
+      </select>
+    </div>
+
+    <div class="fids-board" id="fids-board">
+      <div class="fids-header">
+        <div class="fids-title">THE CURLY BABUS · FLIGHTS</div>
+        <div class="fids-clock" id="fids-time">--:--</div>
+      </div>
+      <div class="fids-col-headers">
+        <div class="fids-col-h">AIRLINE / FLT</div>
+        <div class="fids-col-h">TYPE</div>
+        <div class="fids-col-h">FROM</div>
+        <div class="fids-col-h">TO</div>
+        <div class="fids-col-h">DEPARTS</div>
+        <div class="fids-col-h">ARRIVES</div>
+        <div class="fids-col-h">PASSENGERS</div>
+      </div>
+      <div id="fids-rows"><div style="padding:32px;text-align:center;color:#2a5070;font-family:var(--font-mono);font-size:13px">LOADING FLIGHT DATA...</div></div>
+    </div>
+  </main>
+</div>
+
+<!-- Add Flight Modal -->
+<div class="modal-overlay" id="flight-modal">
+  <div class="modal" style="max-width:720px">
+    <div class="modal-header">
+      <div class="modal-title">Add Flight</div>
+      <button class="modal-close" onclick="closeModal('flight-modal')">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Guest *</label>
+        <select id="f-guest"><option value="">Select a guest...</option></select>
+      </div>
+      <div class="form-group">
+        <label>Type *</label>
+        <select id="f-type">
+          <option value="inbound">Inbound (Arriving)</option>
+          <option value="outbound">Outbound (Departing)</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Airline</label><input id="f-airline" placeholder="American Airlines"></div>
+      <div class="form-group"><label>Flight Number</label><input id="f-flightnum" placeholder="AA1234" style="font-family:var(--font-mono)"></div>
+      <div class="form-group"><label>Transport</label><select id="f-transport"><option value="">None</option></select></div>
+      <div class="form-group"><label>Origin City</label><input id="f-origin-city" placeholder="Los Angeles"></div>
+      <div class="form-group"><label>Origin Code</label><input id="f-origin-code" placeholder="LAX" style="font-family:var(--font-mono);text-transform:uppercase"></div>
+      <div class="form-group"><label>Dest City</label><input id="f-dest-city" placeholder="Phoenix"></div>
+      <div class="form-group"><label>Dest Code</label><input id="f-dest-code" placeholder="PHX" style="font-family:var(--font-mono);text-transform:uppercase"></div>
+      <div class="form-group"><label>Departure DateTime</label><input id="f-dep-dt" type="datetime-local"></div>
+      <div class="form-group"><label>Arrival DateTime</label><input id="f-arr-dt" type="datetime-local"></div>
+      <div class="form-group"><label>Dep Terminal</label><input id="f-dep-term" placeholder="T3"></div>
+      <div class="form-group"><label>Dep Terminal 2</label><input id="f-dep-term2" placeholder="Optional"></div>
+      <div class="form-group"><label>Arr Terminal</label><input id="f-arr-term" placeholder="T4"></div>
+      <div class="form-group"><label>Arr Terminal 2</label><input id="f-arr-term2" placeholder="Optional"></div>
+      <div class="form-group full"><label>Transport Notes</label><input id="f-transport-notes" placeholder="Shared Uber to Airbnb"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('flight-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveFlight()">Save Flight</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+checkAuth(); renderNav();
+let allFlights = [], allGuests = [], allTransports = [], filterType = 'all', liveStatuses = {};
+
+function tick() {
+  const now = new Date();
+  document.getElementById('fids-time').textContent = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+}
+tick(); setInterval(tick,1000);
+
+function setFilter(type, btn) {
+  filterType = type;
+  document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderBoard();
+}
+
+async function load() {
+  const [flights, guests, transports] = await Promise.all([
+    api('/flights/board'),
+    api('/guests'),
+    api('/transport-types')
+  ]);
+  allFlights = flights || [];
+  allGuests = guests || [];
+  allTransports = transports || [];
+
+  // Populate guest dropdown
+  const fg = document.getElementById('f-guest');
+  fg.innerHTML = '<option value="">Select a guest...</option>' +
+    allGuests.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+
+  // Populate transport dropdown
+  const ft = document.getElementById('f-transport');
+  ft.innerHTML = '<option value="">None</option>' +
+    allTransports.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+
+  // Populate date filter
+  const dates = [...new Set(allFlights.map(f => {
+    const dt = f.departure_datetime || f.arrival_datetime;
+    return dt ? dt.split('T')[0] : null;
+  }).filter(Boolean))].sort();
+  const df = document.getElementById('date-filter');
+  const cur = df.value;
+  df.innerHTML = '<option value="">All Dates</option>' + dates.map(d => `<option value="${d}" ${d===cur?'selected':''}>${fmtDate(d)}</option>`).join('');
+
+  // Show live section if any flight is within 48h
+  const now = Date.now();
+  const hasSoon = allFlights.some(f => {
+    const dt = f.departure_datetime || f.arrival_datetime;
+    if (!dt) return false;
+    return Math.abs(new Date(dt) - now) / 3600000 <= 48;
+  });
+  if (hasSoon) document.getElementById('live-section').classList.remove('hidden');
+
+  updateStats();
+  renderBoard();
+}
+
+function updateStats() {
+  const inbound = allFlights.filter(f => f.type === 'inbound');
+  const outbound = allFlights.filter(f => f.type === 'outbound');
+  const allPax = new Set(allFlights.flatMap(f => (f.passengers||[]).map(p => p.id)));
+  document.getElementById('bs-total').textContent = allFlights.length;
+  document.getElementById('bs-inbound').textContent = inbound.length;
+  document.getElementById('bs-outbound').textContent = outbound.length;
+  document.getElementById('bs-pax').textContent = allPax.size;
+  const onTime = Object.values(liveStatuses).filter(s => s && s.status === 'active').length;
+  const delayed = Object.values(liveStatuses).filter(s => s && s.departure && s.departure.delay > 0).length;
+  document.getElementById('bs-ontime').textContent = onTime || '—';
+  document.getElementById('bs-delayed').textContent = delayed || '—';
+  document.getElementById('bs-inair').textContent = Object.values(liveStatuses).filter(s => s && s.status === 'active').length || '—';
+}
+
+function renderBoard() {
+  let list = allFlights;
+  if (filterType !== 'all') list = list.filter(f => f.type === filterType);
+  const dateF = document.getElementById('date-filter').value;
+  if (dateF) list = list.filter(f => (f.departure_datetime||f.arrival_datetime||'').startsWith(dateF));
+  list = [...list].sort((a,b) => {
+    const ta = a.departure_datetime || a.arrival_datetime || '';
+    const tb = b.departure_datetime || b.arrival_datetime || '';
+    return ta.localeCompare(tb);
+  });
+
+  if (!list.length) {
+    document.getElementById('fids-rows').innerHTML = `
+      <div style="padding:48px;text-align:center;color:#1a4060;font-family:var(--font-mono);font-size:13px;letter-spacing:2px">
+        NO FLIGHTS TO DISPLAY<br>
+        <span style="font-size:11px;color:#2a5070;margin-top:8px;display:inline-block">Click "+ Add Flight" to add one</span>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('fids-rows').innerHTML = list.map(f => {
+    const live = liveStatuses[f.flight_number];
+    const depTime = fmtTime(f.departure_datetime);
+    const arrTime = fmtTime(f.arrival_datetime);
+    const terminals = [];
+    if (f.departure_terminal) terminals.push(`<span class="fids-terminal-val">DEP ${f.departure_terminal}${f.departure_terminal_2 ? '/' + f.departure_terminal_2 : ''}</span>`);
+    if (f.arrival_terminal) terminals.push(`<span class="fids-terminal-val">ARR ${f.arrival_terminal}${f.arrival_terminal_2 ? '/' + f.arrival_terminal_2 : ''}</span>`);
+
+    let statusHTML = '';
+    if (live) {
+      const delay = live.departure?.delay;
+      const st = live.status;
+      if (st === 'active') statusHTML = `<span class="fids-status fids-on-time">● IN AIR</span>`;
+      else if (st === 'landed') statusHTML = `<span class="fids-status fids-landed">✓ LANDED</span>`;
+      else if (st === 'cancelled') statusHTML = `<span class="fids-status fids-cancelled">✗ CANCELLED</span>`;
+      else if (delay && delay > 0) statusHTML = `<span class="fids-status fids-delayed">+${delay}m DELAY</span>`;
+      else statusHTML = `<span class="fids-status fids-on-time">ON TIME</span>`;
+    } else {
+      statusHTML = `<span class="fids-status fids-scheduled">SCHEDULED</span>`;
+    }
+
+    const passengers = (f.passengers||[]);
+    const isInbound = f.type === 'inbound';
+    return `
+      <div class="fids-row" data-flightnum="${f.flight_number||''}">
+        <div>
+          <div class="fids-airline-name">${f.airline||'—'}</div>
+          <div class="fids-flight-num">${f.flight_number||'—'}</div>
+          ${terminals.length ? `<div style="margin-top:4px">${terminals.join('')}</div>` : ''}
+        </div>
+        <div>
+          <span style="display:inline-block;padding:3px 9px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.5px;${isInbound?'background:rgba(16,185,129,.1);color:var(--green)':'background:rgba(245,158,11,.1);color:var(--amber)'}">
+            ${isInbound ? '↓ ARR' : '↑ DEP'}
+          </span>
+        </div>
+        <div>
+          <div class="fids-city">${f.origin_city||'—'}</div>
+          <div class="fids-code">${f.origin_code||''}</div>
+        </div>
+        <div>
+          <div class="fids-city">${f.destination_city||'—'}</div>
+          <div class="fids-code">${f.destination_code||''}</div>
+        </div>
+        <div>
+          <div class="fids-time-main">${depTime}</div>
+          <div class="fids-time-label">${f.departure_datetime ? f.departure_datetime.split('T')[0] : ''}</div>
+        </div>
+        <div>
+          <div class="fids-time-main">${arrTime}</div>
+          <div class="fids-time-label">${f.arrival_datetime ? f.arrival_datetime.split('T')[0] : ''}</div>
+        </div>
+        <div>
+          ${statusHTML}
+          <div class="fids-pax-wrap" style="margin-top:6px">
+            ${passengers.map(p => `<a href="/guest-profile.html?id=${p.id}" class="fids-pax-pill" style="text-decoration:none">${p.name.split(' ')[0]}</a>`).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openAddFlightModal() {
+  ['f-airline','f-flightnum','f-origin-city','f-origin-code','f-dest-city','f-dest-code',
+   'f-dep-term','f-dep-term2','f-arr-term','f-arr-term2','f-dep-dt','f-arr-dt','f-transport-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-type').value = 'inbound';
+  document.getElementById('f-guest').value = '';
+  document.getElementById('f-transport').value = '';
+  openModal('flight-modal');
+}
+
+async function saveFlight() {
+  const guest_id = document.getElementById('f-guest').value;
+  if (!guest_id) { toast('Please select a guest','error'); return; }
+  const body = {
+    guest_id: parseInt(guest_id),
+    type: document.getElementById('f-type').value,
+    airline: document.getElementById('f-airline').value,
+    flight_number: document.getElementById('f-flightnum').value.toUpperCase(),
+    origin_city: document.getElementById('f-origin-city').value,
+    origin_code: document.getElementById('f-origin-code').value.toUpperCase(),
+    destination_city: document.getElementById('f-dest-city').value,
+    destination_code: document.getElementById('f-dest-code').value.toUpperCase(),
+    departure_terminal: document.getElementById('f-dep-term').value,
+    departure_terminal_2: document.getElementById('f-dep-term2').value,
+    arrival_terminal: document.getElementById('f-arr-term').value,
+    arrival_terminal_2: document.getElementById('f-arr-term2').value,
+    departure_datetime: document.getElementById('f-dep-dt').value,
+    arrival_datetime: document.getElementById('f-arr-dt').value,
+    transport_type_id: document.getElementById('f-transport').value || null,
+    transport_notes: document.getElementById('f-transport-notes').value
+  };
+  try {
+    await api('/flights', 'POST', body);
+    closeModal('flight-modal');
+    toast('Flight added');
+    load();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function refreshLiveAll() {
+  const toRefresh = allFlights.filter(f => {
+    if (!f.flight_number) return false;
+    const dt = f.departure_datetime || f.arrival_datetime;
+    if (!dt) return false;
+    return Math.abs(new Date(dt) - Date.now()) / 3600000 <= 48;
+  });
+  for (const f of toRefresh) {
+    const date = (f.departure_datetime||f.arrival_datetime||'').split('T')[0];
+    try {
+      const r = await api(`/flight-status/${f.flight_number}/${date}`);
+      if (r && r.data) liveStatuses[f.flight_number] = r.data;
+    } catch(e) {}
+  }
+  updateStats();
+  renderBoard();
+  toast('Live status refreshed');
+}
+
+load();
+</script>
+</body>
+</html>

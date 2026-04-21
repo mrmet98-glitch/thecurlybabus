@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flight Coordination — The Curly Babus</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="app-layout">
+  <div id="nav-placeholder"></div>
+  <main class="main-content">
+    <div class="page-header">
+      <div>
+        <div class="page-title">🗺 Flight Coordination</div>
+        <div class="page-subtitle">People near each other — same airport, ±30 min window</div>
+      </div>
+      <div class="flex gap-2">
+        <select id="type-filter" onchange="renderClusters()" style="max-width:160px">
+          <option value="">All Types</option>
+          <option value="inbound">Arrivals Only</option>
+          <option value="outbound">Departures Only</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="load()">↻ Refresh</button>
+      </div>
+    </div>
+
+    <div id="legend" style="display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2)">
+        <div style="width:10px;height:10px;border-radius:2px;background:var(--bg-elevated);border:1px solid var(--border-light)"></div> Same terminal — easy coordination
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--amber)">
+        <div style="width:10px;height:10px;border-radius:2px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3)"></div> Different terminal — may need to coordinate
+      </div>
+    </div>
+
+    <div id="no-flights" class="hidden" style="text-align:center;padding:60px 20px;color:var(--text-3)">
+      <div style="font-size:36px;margin-bottom:12px">✈️</div>
+      <div>No flight clusters found. Add flights to guests to see coordination groups.</div>
+    </div>
+    <div id="clusters-container"></div>
+  </main>
+</div>
+<script src="/js/app.js"></script>
+<script>
+checkAuth(); renderNav();
+let clusters = [];
+
+async function load() {
+  clusters = await api('/flights/coordination') || [];
+  renderClusters();
+}
+
+function renderClusters() {
+  const typeF = document.getElementById('type-filter').value;
+  let list = clusters;
+  if (typeF) list = list.filter(c => c.type === typeF);
+  list = list.sort((a,b) => a.date.localeCompare(b.date) || a.airport.localeCompare(b.airport));
+
+  if (!list.length) {
+    document.getElementById('no-flights').classList.remove('hidden');
+    document.getElementById('clusters-container').innerHTML = '';
+    return;
+  }
+  document.getElementById('no-flights').classList.add('hidden');
+
+  // Group by date
+  const byDate = {};
+  for (const c of list) {
+    if (!byDate[c.date]) byDate[c.date] = [];
+    byDate[c.date].push(c);
+  }
+
+  document.getElementById('clusters-container').innerHTML = Object.entries(byDate).map(([date, dayClusters]) => `
+    <div style="margin-bottom:28px">
+      <div style="font-family:var(--font-display);font-size:14px;font-weight:600;color:var(--text-2);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:10px">
+        <div style="height:1px;width:24px;background:var(--border)"></div>
+        ${fmtDate(date)}
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>
+      ${dayClusters.map(c => renderCluster(c)).join('')}
+    </div>
+  `).join('');
+}
+
+function renderCluster(cluster) {
+  const isArrival = cluster.type === 'inbound';
+  const badgeClass = isArrival ? 'coord-arrivals' : 'coord-departures';
+  const badgeText = isArrival ? '↓ ARRIVALS' : '↑ DEPARTURES';
+
+  // Sort members by time
+  const sorted = [...cluster.members].sort((a,b) => (a.time||'').localeCompare(b.time||''));
+  const anchorTime = sorted[0]?.time ? new Date(sorted[0].time) : null;
+
+  // Group by terminal
+  const byTerminal = {};
+  for (const m of sorted) {
+    const key = m.terminal || 'Unknown';
+    if (!byTerminal[key]) byTerminal[key] = [];
+    byTerminal[key].push(m);
+  }
+
+  const terminalKeys = Object.keys(byTerminal);
+  const hasMixed = terminalKeys.length > 1;
+
+  // Find the terminal with most people (primary)
+  const primaryTerminal = terminalKeys.sort((a,b) => byTerminal[b].length - byTerminal[a].length)[0];
+
+  return `
+    <div class="coord-cluster">
+      <div class="coord-header">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div class="coord-airport-code">${cluster.airport}</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text-1)">${cluster.members.length} people within ~30 min</div>
+            <div class="coord-meta">${fmtDate(cluster.date)} · ${sorted[0]?.time ? fmtTime(sorted[0].time) : ''} – ${sorted[sorted.length-1]?.time ? fmtTime(sorted[sorted.length-1].time) : ''}</div>
+          </div>
+        </div>
+        <span class="coord-badge ${badgeClass}">${badgeText}</span>
+      </div>
+      <div class="coord-body">
+        ${terminalKeys.map((term, i) => {
+          const members = byTerminal[term];
+          const isPrimary = term === primaryTerminal;
+          const isDiff = hasMixed && !isPrimary;
+          return `
+            <div class="coord-group">
+              <div class="coord-term-label" style="${isDiff ? 'color:var(--amber)' : ''}">
+                ${term === 'Unknown' ? 'No Terminal' : 'Terminal ' + term}
+                ${isDiff ? '<br><span style="font-size:9px;opacity:.7">DIFF TERMINAL</span>' : ''}
+              </div>
+              <div class="coord-cards">
+                ${members.map(m => {
+                  const minDiff = anchorTime && m.time ? Math.round(Math.abs(new Date(m.time) - anchorTime) / 60000) : 0;
+                  return `
+                    <div class="coord-card ${isDiff ? 'coord-diff-warning' : ''}">
+                      <div class="coord-card-name">${m.name}</div>
+                      <div class="coord-card-flight mono">${m.flight_number || '—'} ${m.airline ? '· ' + m.airline : ''}</div>
+                      <div class="coord-card-time">${fmtTime(m.time)}</div>
+                      ${minDiff > 0 ? `<div style="font-size:10px;color:var(--text-3);margin-top:2px">+${minDiff} min</div>` : '<div style="font-size:10px;color:var(--green);margin-top:2px">anchor</div>'}
+                      ${m.terminal_2 ? `<div style="font-size:10px;color:var(--text-3)">also T${m.terminal_2}</div>` : ''}
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+            ${isDiff && hasMixed ? `
+              <div style="grid-column:1/-1;font-size:11px;color:var(--amber);background:rgba(245,158,11,.06);padding:6px 10px;border-radius:4px;border:1px solid rgba(245,158,11,.12);margin-top:-4px">
+                ⚠ ${members.map(m => m.name.split(' ')[0]).join(', ')} arrive ${minDiff(members[0], sorted.find(s => s.terminal === primaryTerminal))} min nearby but at a different terminal — may need to meet outside security
+              </div>
+            ` : ''}
+          `;
+        }).join('<div style="height:1px;background:var(--border);margin:4px 0;width:100%"></div>')}
+      </div>
+    </div>
+  `;
+}
+
+function minDiff(a, b) {
+  if (!a?.time || !b?.time) return '?';
+  return Math.round(Math.abs(new Date(a.time) - new Date(b.time)) / 60000);
+}
+
+load();
+</script>
+</body>
+</html>

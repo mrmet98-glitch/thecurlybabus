@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — The Curly Babus</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="app-layout">
+  <div id="nav-placeholder"></div>
+  <main class="main-content">
+    <div class="page-header">
+      <div><div class="page-title">⚙ Admin Settings</div><div class="page-subtitle">Transport types, event categories, and system settings</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+      <!-- Transport Types -->
+      <div class="card">
+        <div class="card-header"><div class="card-title">Transport Types</div><button class="btn btn-primary btn-sm" onclick="addTransport()">+</button></div>
+        <div id="transport-list">Loading...</div>
+      </div>
+      <!-- Event Categories -->
+      <div class="card">
+        <div class="card-header"><div class="card-title">Event Categories</div><button class="btn btn-primary btn-sm" onclick="addCategory()">+</button></div>
+        <div id="cat-list">Loading...</div>
+      </div>
+    </div>
+    <!-- Danger Zone -->
+    <div class="card mt-4" style="border-color:var(--red-dim)">
+      <div class="card-header"><div class="card-title text-red">Session</div></div>
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:12px">You are logged in as admin.</p>
+      <button class="btn btn-danger" onclick="clearAuth()">Log Out</button>
+    </div>
+  </main>
+</div>
+<script src="/js/app.js"></script>
+<script>
+checkAuth(); renderNav();
+async function load() {
+  const [transports, cats] = await Promise.all([api('/transport-types'), api('/event-categories')]);
+  renderList('transport-list', transports, 'transport');
+  renderList('cat-list', cats, 'cat');
+}
+function renderList(id, items, type) {
+  document.getElementById(id).innerHTML = items.length ? items.map(item => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      <span style="color:var(--text-1)">${item.name}</span>
+      <button class="btn btn-danger btn-sm" onclick="del${type.charAt(0).toUpperCase()+type.slice(1)}(${item.id})">✕</button>
+    </div>
+  `).join('') : '<div class="text-muted text-sm" style="padding:12px 0">None added</div>';
+}
+async function addTransport() {
+  const name = prompt('Transport type name:');
+  if (!name) return;
+  await api('/transport-types', 'POST', { name });
+  load();
+}
+async function addCategory() {
+  const name = prompt('Category name:');
+  if (!name) return;
+  await api('/event-categories', 'POST', { name });
+  load();
+}
+async function delTransport(id) {
+  if (!confirm('Delete?')) return;
+  await api(`/transport-types/${id}`, 'DELETE'); load();
+}
+async function delCat(id) {
+  if (!confirm('Delete?')) return;
+  await api(`/event-categories/${id}`, 'DELETE'); load();
+}
+load();
+</script>
+</body>
+</html>

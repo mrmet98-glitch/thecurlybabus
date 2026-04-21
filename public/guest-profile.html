@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guest Profile — The Curly Babus</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="app-layout">
+  <div id="nav-placeholder"></div>
+  <main class="main-content">
+    <div class="page-header">
+      <div>
+        <div style="font-size:12px;color:var(--text-3);margin-bottom:6px"><a href="/guests.html" style="color:var(--text-3);text-decoration:none">← Guests</a></div>
+        <div class="page-title" id="guest-name">Loading...</div>
+        <div id="guest-status" style="margin-top:6px"></div>
+      </div>
+      <div class="flex gap-2">
+        <button class="btn btn-ghost" onclick="openEditModal()">Edit Guest</button>
+        <button class="btn btn-primary" onclick="openFlightModal()">+ Add Flight</button>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:320px 1fr;gap:18px">
+      <!-- Left column -->
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <!-- Contact -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">Contact</div></div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+            <div class="flex justify-between"><span class="text-muted">Phone</span><span id="p-phone" class="mono">—</span></div>
+            <div class="flex justify-between"><span class="text-muted">Email</span><span id="p-email">—</span></div>
+            <div class="flex justify-between"><span class="text-muted">Team</span><span id="p-team" style="color:var(--purple)">—</span></div>
+          </div>
+        </div>
+        <!-- Groups -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">Groups</div></div>
+          <div id="p-groups"></div>
+        </div>
+        <!-- Trip Dates -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">Trip Dates</div></div>
+          <div style="font-size:13px;display:flex;flex-direction:column;gap:8px">
+            <div class="flex justify-between"><span class="text-muted">Arrives</span><span id="p-arrival" class="mono">—</span></div>
+            <div class="flex justify-between"><span class="text-muted">Departs</span><span id="p-departure" class="mono">—</span></div>
+            <div class="flex justify-between"><span class="text-muted">Nights</span><span id="p-nights" class="mono text-accent">—</span></div>
+          </div>
+        </div>
+        <!-- Room -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">Room Assignment</div></div>
+          <div id="p-room" class="text-sm text-muted">Not assigned</div>
+        </div>
+        <!-- Notes -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">Notes</div></div>
+          <div id="p-notes" class="text-sm text-muted" style="white-space:pre-wrap">—</div>
+        </div>
+      </div>
+
+      <!-- Right column -->
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <!-- Financials -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">💰 Financials</div>
+            <button class="btn btn-ghost btn-sm" onclick="openPaymentModal()">Update Payment</button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px">
+            <div style="background:var(--bg-elevated);padding:14px;border-radius:8px;border:1px solid var(--border)">
+              <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Housing Owed</div>
+              <div id="p-housing-owed" class="mono" style="font-size:18px;font-weight:700;color:var(--text-1)">—</div>
+            </div>
+            <div style="background:var(--bg-elevated);padding:14px;border-radius:8px;border:1px solid var(--border)">
+              <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Events Owed</div>
+              <div id="p-events-owed" class="mono" style="font-size:18px;font-weight:700;color:var(--text-1)">—</div>
+            </div>
+            <div style="background:var(--bg-elevated);padding:14px;border-radius:8px;border:1px solid var(--border)">
+              <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Total Owed</div>
+              <div id="p-total-owed" class="mono" style="font-size:18px;font-weight:700;color:var(--amber)">—</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <div><div style="font-size:11px;color:var(--text-3)">Paid</div><div id="p-paid" class="mono text-green" style="font-size:15px;font-weight:600">—</div></div>
+            <div><div style="font-size:11px;color:var(--text-3)">Remaining</div><div id="p-remaining" class="mono text-red" style="font-size:15px;font-weight:600">—</div></div>
+            <div><div style="font-size:11px;color:var(--text-3)">Status</div><div id="p-pay-status" style="font-size:13px">—</div></div>
+          </div>
+          <div id="p-pay-notes" class="text-sm text-muted mt-2"></div>
+        </div>
+
+        <!-- Flights -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">✈️ Flights</div>
+            <button class="btn btn-ghost btn-sm" onclick="openFlightModal()">+ Flight</button>
+          </div>
+          <div id="p-flights"><div class="text-muted text-sm">No flights added</div></div>
+        </div>
+
+        <!-- Events -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">🗓️ Events</div></div>
+          <div id="p-events"><div class="text-muted text-sm">Not assigned to any events</div></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Edit Modal (simplified) -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title">Edit Guest</div><button class="modal-close" onclick="closeModal('edit-modal')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Full Name</label><input id="e-name"></div>
+      <div class="form-group"><label>Phone</label><input id="e-phone"></div>
+      <div class="form-group"><label>Email</label><input id="e-email" type="email"></div>
+      <div class="form-group"><label>Status</label>
+        <select id="e-status">
+          <option value="confirmed">✅ Confirmed</option><option value="maybe">🟡 Maybe</option>
+          <option value="cant_make_it">❌ Can't Make It</option><option value="adi">? Adi</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Team</label><select id="e-team"><option value="">No Team</option></select></div>
+      <div class="form-group"><label>Arrival Date</label><input id="e-arrival" type="date"></div>
+      <div class="form-group"><label>Departure Date</label><input id="e-departure" type="date"></div>
+      <div class="form-group"><label>Room</label><select id="e-room"><option value="">Unassigned</option></select></div>
+      <div class="form-group full"><label>Groups</label><div id="e-groups-cb" style="display:flex;flex-wrap:wrap;gap:8px"></div></div>
+      <div class="form-group full"><label>Notes</label><textarea id="e-notes"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('edit-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Payment Modal -->
+<div class="modal-overlay" id="payment-modal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header"><div class="modal-title">Update Payment</div><button class="modal-close" onclick="closeModal('payment-modal')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Amount Paid ($)</label><input id="pay-amount" type="number" step="0.01" min="0"></div>
+      <div class="form-group full"><label>Notes</label><textarea id="pay-notes" style="min-height:60px"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('payment-modal')">Cancel</button>
+      <button class="btn btn-green" onclick="savePayment()">Mark Paid</button>
+    </div>
+  </div>
+</div>
+
+<!-- Flight Modal -->
+<div class="modal-overlay" id="flight-modal">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header"><div class="modal-title" id="flight-modal-title">Add Flight</div><button class="modal-close" onclick="closeModal('flight-modal')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Type</label>
+        <select id="f-type"><option value="inbound">Inbound (Arriving)</option><option value="outbound">Outbound (Departing)</option></select>
+      </div>
+      <div class="form-group"><label>Airline</label><input id="f-airline" placeholder="American Airlines"></div>
+      <div class="form-group"><label>Flight Number</label><input id="f-flightnum" placeholder="AA1234" style="font-family:var(--font-mono)"></div>
+      <div class="form-group"><label>Origin City</label><input id="f-origin-city" placeholder="Los Angeles"></div>
+      <div class="form-group"><label>Origin Code</label><input id="f-origin-code" placeholder="LAX" style="font-family:var(--font-mono)"></div>
+      <div class="form-group"><label>Dest City</label><input id="f-dest-city" placeholder="Phoenix"></div>
+      <div class="form-group"><label>Dest Code</label><input id="f-dest-code" placeholder="PHX" style="font-family:var(--font-mono)"></div>
+      <div class="form-group"><label>Departure DateTime</label><input id="f-dep-dt" type="datetime-local"></div>
+      <div class="form-group"><label>Arrival DateTime</label><input id="f-arr-dt" type="datetime-local"></div>
+      <div class="form-group"><label>Dep Terminal</label><input id="f-dep-term" placeholder="T3"></div>
+      <div class="form-group"><label>Dep Terminal 2</label><input id="f-dep-term2" placeholder="Optional"></div>
+      <div class="form-group"><label>Arr Terminal</label><input id="f-arr-term" placeholder="T4"></div>
+      <div class="form-group"><label>Arr Terminal 2</label><input id="f-arr-term2" placeholder="Optional"></div>
+      <div class="form-group"><label>Transport</label><select id="f-transport"><option value="">None</option></select></div>
+      <div class="form-group"><label>Transport Notes</label><input id="f-transport-notes" placeholder="Shared Uber to Airbnb"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('flight-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveFlight()">Save Flight</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+checkAuth(); renderNav();
+const gid = parseInt(new URLSearchParams(location.search).get('id'));
+let guest = null, housingCalc = null, editFlightId = null;
+
+async function load() {
+  const [g, hc, groups, teams, rooms, transports] = await Promise.all([
+    api(`/guests/${gid}`), api('/housing/calculation'),
+    api('/groups'), api('/teams'), api('/rooms'), api('/transport-types')
+  ]);
+  guest = g; housingCalc = hc;
+
+  document.getElementById('guest-name').textContent = g.name;
+  document.getElementById('guest-status').innerHTML = statusBadge(g.status);
+  document.getElementById('p-phone').textContent = g.phone || '—';
+  document.getElementById('p-email').textContent = g.email || '—';
+  document.getElementById('p-team').textContent = g.team_name || '—';
+  document.getElementById('p-groups').innerHTML = groupTags(g.groups) || '<span class="text-muted text-sm">No groups</span>';
+  document.getElementById('p-arrival').textContent = g.arrival_date || '—';
+  document.getElementById('p-departure').textContent = g.departure_date || '—';
+  document.getElementById('p-notes').textContent = g.notes || '—';
+
+  if (g.arrival_date && g.departure_date) {
+    const nights = (new Date(g.departure_date) - new Date(g.arrival_date)) / 86400000;
+    document.getElementById('p-nights').textContent = nights + ' nights';
+  }
+
+  if (g.room_name) {
+    document.getElementById('p-room').innerHTML = `<span style="color:var(--text-1)">${g.property_name || ''}</span> <span class="text-muted">→</span> <span style="color:var(--accent)">${g.room_name}</span>`;
+  }
+
+  // Housing
+  let housingOwed = 0;
+  if (hc && hc.guests) {
+    const myCalc = hc.guests.find(x => x.id === gid);
+    if (myCalc) housingOwed = myCalc.calculated;
+  }
+
+  // Events
+  let eventsOwed = 0;
+  if (g.events && g.events.length) {
+    g.events.forEach(e => { eventsOwed += e.my_cost || 0; });
+    document.getElementById('p-events').innerHTML = g.events.map(e => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <div>
+          <div style="font-weight:600">${e.title}</div>
+          <div class="text-muted text-xs">${e.event_date}${e.start_time ? ' · ' + e.start_time : ''}</div>
+        </div>
+        <div class="mono text-amber">${fmtMoney(e.my_cost)}</div>
+      </div>
+    `).join('');
+  }
+
+  const totalOwed = housingOwed + eventsOwed;
+  const paid = g.housing_paid || 0;
+  const remaining = totalOwed - paid;
+
+  document.getElementById('p-housing-owed').textContent = fmtMoney(housingOwed);
+  document.getElementById('p-events-owed').textContent = fmtMoney(eventsOwed);
+  document.getElementById('p-total-owed').textContent = fmtMoney(totalOwed);
+  document.getElementById('p-paid').textContent = fmtMoney(paid);
+  document.getElementById('p-remaining').textContent = fmtMoney(Math.max(0, remaining));
+  const payStatus = paid >= totalOwed && totalOwed > 0 ? '<span class="badge badge-confirmed">Paid</span>'
+    : paid > 0 ? '<span class="badge badge-maybe">Partial</span>'
+    : '<span class="badge badge-cant_make_it">Unpaid</span>';
+  document.getElementById('p-pay-status').innerHTML = payStatus;
+  if (g.payment_notes) document.getElementById('p-pay-notes').textContent = g.payment_notes;
+
+  // Flights
+  if (g.flights && g.flights.length) {
+    document.getElementById('p-flights').innerHTML = g.flights.map(f => `
+      <div style="padding:12px;margin-bottom:8px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;position:relative">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div>
+            <span class="mono" style="font-size:15px;font-weight:600;color:var(--text-1)">${f.flight_number||'—'}</span>
+            <span style="font-size:11px;color:var(--text-3);margin-left:8px">${f.airline||''}</span>
+          </div>
+          <div style="display:flex;gap:6px">
+            <span class="badge" style="background:${f.type==='inbound'?'var(--green-dim)':'var(--amber-dim)'};color:${f.type==='inbound'?'var(--green)':'var(--amber)'}">${f.type}</span>
+            <button class="btn btn-danger btn-sm" onclick="deleteFlight(${f.id})">✕</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:20px;font-size:12px;color:var(--text-2)">
+          <div><span class="mono" style="color:var(--text-1)">${f.origin_code||'—'}</span> → <span class="mono" style="color:var(--text-1)">${f.destination_code||'—'}</span></div>
+          <div>Dep: <span class="mono">${fmtDateTime(f.departure_datetime)}</span></div>
+          <div>Arr: <span class="mono">${fmtDateTime(f.arrival_datetime)}</span></div>
+        </div>
+        ${f.departure_terminal ? `<div style="font-size:11px;color:var(--text-3);margin-top:4px">Dep Terminal: ${f.departure_terminal}${f.departure_terminal_2 ? ' / ' + f.departure_terminal_2 : ''} · Arr Terminal: ${f.arrival_terminal||'—'}${f.arrival_terminal_2 ? ' / ' + f.arrival_terminal_2 : ''}</div>` : ''}
+        ${f.transport_name ? `<div style="font-size:11px;color:var(--accent);margin-top:4px">🚗 ${f.transport_name}${f.transport_notes ? ': ' + f.transport_notes : ''}</div>` : ''}
+      </div>
+    `).join('');
+  }
+
+  // Populate edit modal
+  document.getElementById('e-name').value = g.name;
+  document.getElementById('e-phone').value = g.phone||'';
+  document.getElementById('e-email').value = g.email||'';
+  document.getElementById('e-status').value = g.status;
+  document.getElementById('e-arrival').value = g.arrival_date||'';
+  document.getElementById('e-departure').value = g.departure_date||'';
+  document.getElementById('e-notes').value = g.notes||'';
+
+  const ts = document.getElementById('e-team');
+  ts.innerHTML = '<option value="">No Team</option>' + teams.map(t => `<option value="${t.id}" ${g.team_id==t.id?'selected':''}>${t.name}</option>`).join('');
+
+  const rs = document.getElementById('e-room');
+  rs.innerHTML = '<option value="">Unassigned</option>' + rooms.map(r => `<option value="${r.id}" ${g.room_id==r.id?'selected':''}>${r.property_name} - ${r.name}</option>`).join('');
+
+  const gc = document.getElementById('e-groups-cb');
+  const myGrps = (g.groups||[]).map(x => x.id);
+  gc.innerHTML = groups.map(gr => `
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;text-transform:none;letter-spacing:0;color:var(--text-1)">
+      <input type="checkbox" class="e-group-cb" value="${gr.id}" style="width:auto;accent-color:${gr.color}" ${myGrps.includes(gr.id)?'checked':''}>
+      <span class="group-tag" style="background:${gr.color}22;color:${gr.color};border:1px solid ${gr.color}44">${gr.name}</span>
+    </label>
+  `).join('');
+
+  // Transport
+  const ft = document.getElementById('f-transport');
+  ft.innerHTML = '<option value="">None</option>' + transports.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+}
+
+function openEditModal() { openModal('edit-modal'); }
+
+async function saveEdit() {
+  const group_ids = [...document.querySelectorAll('.e-group-cb:checked')].map(cb => parseInt(cb.value));
+  const body = {
+    name: document.getElementById('e-name').value,
+    phone: document.getElementById('e-phone').value,
+    email: document.getElementById('e-email').value,
+    status: document.getElementById('e-status').value,
+    team_id: document.getElementById('e-team').value || null,
+    arrival_date: document.getElementById('e-arrival').value || null,
+    departure_date: document.getElementById('e-departure').value || null,
+    room_id: document.getElementById('e-room').value || null,
+    notes: document.getElementById('e-notes').value,
+    group_ids
+  };
+  await api(`/guests/${gid}`, 'PUT', body);
+  closeModal('edit-modal');
+  toast('Guest updated');
+  load();
+}
+
+function openPaymentModal() {
+  document.getElementById('pay-amount').value = guest.housing_paid || 0;
+  document.getElementById('pay-notes').value = guest.payment_notes || '';
+  openModal('payment-modal');
+}
+
+async function savePayment() {
+  const body = {
+    housing_paid: parseFloat(document.getElementById('pay-amount').value) || 0,
+    payment_notes: document.getElementById('pay-notes').value
+  };
+  await api(`/payments/${gid}`, 'PUT', body);
+  closeModal('payment-modal');
+  toast('Payment updated');
+  load();
+}
+
+function openFlightModal(fid = null) {
+  editFlightId = fid;
+  if (!fid) {
+    ['f-airline','f-flightnum','f-origin-city','f-origin-code','f-dest-city','f-dest-code',
+     'f-dep-term','f-dep-term2','f-arr-term','f-arr-term2','f-dep-dt','f-arr-dt','f-transport-notes'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('f-type').value = 'inbound';
+    document.getElementById('f-transport').value = '';
+  }
+  document.getElementById('flight-modal-title').textContent = fid ? 'Edit Flight' : 'Add Flight';
+  openModal('flight-modal');
+}
+
+async function saveFlight() {
+  const body = {
+    guest_id: gid,
+    type: document.getElementById('f-type').value,
+    airline: document.getElementById('f-airline').value,
+    flight_number: document.getElementById('f-flightnum').value.toUpperCase(),
+    origin_city: document.getElementById('f-origin-city').value,
+    origin_code: document.getElementById('f-origin-code').value.toUpperCase(),
+    destination_city: document.getElementById('f-dest-city').value,
+    destination_code: document.getElementById('f-dest-code').value.toUpperCase(),
+    departure_terminal: document.getElementById('f-dep-term').value,
+    departure_terminal_2: document.getElementById('f-dep-term2').value,
+    arrival_terminal: document.getElementById('f-arr-term').value,
+    arrival_terminal_2: document.getElementById('f-arr-term2').value,
+    departure_datetime: document.getElementById('f-dep-dt').value,
+    arrival_datetime: document.getElementById('f-arr-dt').value,
+    transport_type_id: document.getElementById('f-transport').value || null,
+    transport_notes: document.getElementById('f-transport-notes').value
+  };
+  try {
+    if (editFlightId) await api(`/flights/${editFlightId}`, 'PUT', body);
+    else await api('/flights', 'POST', body);
+    closeModal('flight-modal');
+    toast('Flight saved');
+    load();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function deleteFlight(fid) {
+  if (!confirm('Delete this flight?')) return;
+  await api(`/flights/${fid}`, 'DELETE');
+  toast('Flight deleted');
+  load();
+}
+
+load();
+</script>
+</body>
+</html>

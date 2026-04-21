@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Groups & Teams — The Curly Babus</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="app-layout">
+  <div id="nav-placeholder"></div>
+  <main class="main-content">
+    <div class="page-header">
+      <div><div class="page-title">🏷 Groups & Teams</div><div class="page-subtitle">Organize guests into color-coded groups and teams</div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+      <!-- Groups -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Groups</div>
+          <button class="btn btn-primary btn-sm" onclick="openGroupModal()">+ Group</button>
+        </div>
+        <div id="groups-list">Loading...</div>
+      </div>
+      <!-- Teams -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Teams</div>
+          <button class="btn btn-primary btn-sm" onclick="openTeamModal()">+ Team</button>
+        </div>
+        <div id="teams-list">Loading...</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="group-modal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header"><div class="modal-title" id="gm-title">Add Group</div><button class="modal-close" onclick="closeModal('group-modal')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Group Name</label><input id="gm-name" placeholder="VIP Squad"></div>
+      <div class="form-group full"><label>Color</label><input id="gm-color" type="color" value="#3b82f6" style="height:40px;padding:4px;cursor:pointer"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('group-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveGroup()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="team-modal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header"><div class="modal-title" id="tm-title">Add Team</div><button class="modal-close" onclick="closeModal('team-modal')">✕</button></div>
+    <div class="form-group full" style="padding:0 0 16px"><label>Team Name</label><input id="tm-name" placeholder="Team Alpha"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('team-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTeam()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+checkAuth(); renderNav();
+let editGroupId = null, editTeamId = null;
+
+async function load() {
+  const [groups, teams, guests] = await Promise.all([api('/groups'), api('/teams'), api('/guests')]);
+  const gMemberCount = {};
+  for (const g of guests) {
+    for (const gr of (g.groups||[])) {
+      gMemberCount[gr.id] = (gMemberCount[gr.id]||0) + 1;
+    }
+  }
+  const tMemberCount = {};
+  for (const g of guests) {
+    if (g.team_id) tMemberCount[g.team_id] = (tMemberCount[g.team_id]||0) + 1;
+  }
+  document.getElementById('groups-list').innerHTML = groups.length ? groups.map(g => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:14px;height:14px;border-radius:3px;background:${g.color};flex-shrink:0"></div>
+        <div>
+          <div style="font-weight:600;color:var(--text-1)">${g.name}</div>
+          <div style="font-size:11px;color:var(--text-3)">${gMemberCount[g.id]||0} members</div>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button class="btn btn-ghost btn-sm" onclick="editGroup(${g.id},'${g.name}','${g.color}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteGroup(${g.id})">Del</button>
+      </div>
+    </div>
+  `).join('') : '<div class="empty-state" style="padding:24px">No groups yet</div>';
+
+  document.getElementById('teams-list').innerHTML = teams.length ? teams.map(t => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div>
+        <div style="font-weight:600;color:var(--text-1)">${t.name}</div>
+        <div style="font-size:11px;color:var(--text-3)">${tMemberCount[t.id]||0} members</div>
+      </div>
+      <div class="flex gap-2">
+        <button class="btn btn-ghost btn-sm" onclick="editTeam(${t.id},'${t.name}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteTeam(${t.id})">Del</button>
+      </div>
+    </div>
+  `).join('') : '<div class="empty-state" style="padding:24px">No teams yet</div>';
+}
+
+function openGroupModal() {
+  editGroupId = null;
+  document.getElementById('gm-title').textContent = 'Add Group';
+  document.getElementById('gm-name').value = '';
+  document.getElementById('gm-color').value = '#3b82f6';
+  openModal('group-modal');
+}
+function editGroup(id,name,color) {
+  editGroupId = id;
+  document.getElementById('gm-title').textContent = 'Edit Group';
+  document.getElementById('gm-name').value = name;
+  document.getElementById('gm-color').value = color;
+  openModal('group-modal');
+}
+async function saveGroup() {
+  const body = { name: document.getElementById('gm-name').value, color: document.getElementById('gm-color').value };
+  if (!body.name) { toast('Name required','error'); return; }
+  if (editGroupId) await api(`/groups/${editGroupId}`, 'PUT', body);
+  else await api('/groups', 'POST', body);
+  closeModal('group-modal'); toast('Group saved'); load();
+}
+async function deleteGroup(id) {
+  if (!confirm('Delete this group?')) return;
+  await api(`/groups/${id}`, 'DELETE'); toast('Deleted'); load();
+}
+function openTeamModal() {
+  editTeamId = null;
+  document.getElementById('tm-title').textContent = 'Add Team';
+  document.getElementById('tm-name').value = '';
+  openModal('team-modal');
+}
+function editTeam(id,name) {
+  editTeamId = id;
+  document.getElementById('tm-title').textContent = 'Edit Team';
+  document.getElementById('tm-name').value = name;
+  openModal('team-modal');
+}
+async function saveTeam() {
+  const body = { name: document.getElementById('tm-name').value };
+  if (!body.name) { toast('Name required','error'); return; }
+  if (editTeamId) await api(`/teams/${editTeamId}`, 'PUT', body);
+  else await api('/teams', 'POST', body);
+  closeModal('team-modal'); toast('Team saved'); load();
+}
+async function deleteTeam(id) {
+  if (!confirm('Delete this team?')) return;
+  await api(`/teams/${id}`, 'DELETE'); toast('Deleted'); load();
+}
+load();
+</script>
+</body>
+</html>
