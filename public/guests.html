@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guests — Bachelor HQ</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="app-layout">
+  <div id="nav-placeholder"></div>
+  <main class="main-content">
+    <div class="page-header">
+      <div><div class="page-title">Guests</div><div class="page-subtitle">Manage all trip attendees</div></div>
+      <button class="btn btn-primary" onclick="openAddModal()">+ Add Guest</button>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-bottom:18px">
+      <input type="text" id="search" placeholder="Search guests..." style="max-width:280px" oninput="renderGuests()">
+      <select id="filter-status" onchange="renderGuests()">
+        <option value="">All Statuses</option>
+        <option value="confirmed">Confirmed</option>
+        <option value="maybe">Maybe</option>
+        <option value="cant_make_it">Can't Make It</option>
+        <option value="adi">? Adi</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Name</th><th>Status</th><th>Groups</th><th>Team</th>
+            <th>Trip Dates</th><th>Contact</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="guests-tbody"><tr><td colspan="7" class="empty-state">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="guest-modal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Add Guest</div>
+      <button class="modal-close" onclick="closeModal('guest-modal')">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Full Name *</label><input id="g-name" placeholder="First Last"></div>
+      <div class="form-group"><label>Phone</label><input id="g-phone" placeholder="+1 555 000 0000"></div>
+      <div class="form-group"><label>Email</label><input id="g-email" type="email" placeholder="email@example.com"></div>
+      <div class="form-group">
+        <label>Status</label>
+        <select id="g-status">
+          <option value="confirmed">✅ Confirmed</option>
+          <option value="maybe">🟡 Maybe</option>
+          <option value="cant_make_it">❌ Can't Make It</option>
+          <option value="adi">? Adi</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Team</label><select id="g-team"><option value="">No Team</option></select></div>
+      <div class="form-group"><label>Arrival Date</label><input id="g-arrival" type="date"></div>
+      <div class="form-group"><label>Departure Date</label><input id="g-departure" type="date"></div>
+      <div class="form-group full"><label>Groups</label><div id="g-groups-checkboxes" style="display:flex;flex-wrap:wrap;gap:8px;padding:8px 0"></div></div>
+      <div class="form-group full"><label>Notes</label><textarea id="g-notes" placeholder="Any notes..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('guest-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveGuest()">Save Guest</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+checkAuth(); renderNav();
+let guests = [], groups = [], teams = [], editId = null;
+
+async function load() {
+  [guests, groups, teams] = await Promise.all([
+    api('/guests'), api('/groups'), api('/teams')
+  ]);
+  renderGuests();
+  populateFormOptions();
+}
+
+function renderGuests() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const fs = document.getElementById('filter-status').value;
+  let list = guests;
+  if (q) list = list.filter(g => g.name.toLowerCase().includes(q) || (g.email||'').toLowerCase().includes(q));
+  if (fs) list = list.filter(g => g.status === fs);
+  const tbody = document.getElementById('guests-tbody');
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="icon">👤</div>No guests yet</div></td></tr>'; return; }
+  tbody.innerHTML = list.map(g => `
+    <tr>
+      <td><a href="/guest-profile.html?id=${g.id}" style="color:var(--text-1);font-weight:600;text-decoration:none">${g.name}</a></td>
+      <td>${statusBadge(g.status)}</td>
+      <td>${groupTags(g.groups)}</td>
+      <td>${g.team_name ? `<span class="text-sm" style="color:var(--purple)">${g.team_name}</span>` : '<span class="text-muted">—</span>'}</td>
+      <td class="text-sm mono">${g.arrival_date ? g.arrival_date + ' → ' + g.departure_date : '—'}</td>
+      <td class="text-sm text-muted">${g.phone || g.email || '—'}</td>
+      <td>
+        <div class="flex gap-2">
+          <button class="btn btn-ghost btn-sm" onclick="editGuest(${g.id})">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteGuest(${g.id})">Del</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function populateFormOptions() {
+  const ts = document.getElementById('g-team');
+  ts.innerHTML = '<option value="">No Team</option>' + teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+  const gc = document.getElementById('g-groups-checkboxes');
+  gc.innerHTML = groups.map(g => `
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;text-transform:none;letter-spacing:0;color:var(--text-1)">
+      <input type="checkbox" class="g-group-cb" value="${g.id}" style="width:auto;accent-color:${g.color}">
+      <span class="group-tag" style="background:${g.color}22;color:${g.color};border:1px solid ${g.color}44">${g.name}</span>
+    </label>
+  `).join('');
+}
+
+function openAddModal() {
+  editId = null;
+  document.getElementById('modal-title').textContent = 'Add Guest';
+  ['g-name','g-phone','g-email','g-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('g-status').value = 'confirmed';
+  document.getElementById('g-team').value = '';
+  document.getElementById('g-arrival').value = '';
+  document.getElementById('g-departure').value = '';
+  document.querySelectorAll('.g-group-cb').forEach(cb => cb.checked = false);
+  openModal('guest-modal');
+}
+
+async function editGuest(id) {
+  const g = guests.find(x => x.id === id);
+  if (!g) return;
+  editId = id;
+  document.getElementById('modal-title').textContent = 'Edit Guest';
+  document.getElementById('g-name').value = g.name || '';
+  document.getElementById('g-phone').value = g.phone || '';
+  document.getElementById('g-email').value = g.email || '';
+  document.getElementById('g-status').value = g.status || 'confirmed';
+  document.getElementById('g-team').value = g.team_id || '';
+  document.getElementById('g-arrival').value = g.arrival_date || '';
+  document.getElementById('g-departure').value = g.departure_date || '';
+  document.getElementById('g-notes').value = g.notes || '';
+  const gIds = (g.groups||[]).map(x => x.id);
+  document.querySelectorAll('.g-group-cb').forEach(cb => cb.checked = gIds.includes(parseInt(cb.value)));
+  openModal('guest-modal');
+}
+
+async function saveGuest() {
+  const name = document.getElementById('g-name').value.trim();
+  if (!name) { toast('Name required', 'error'); return; }
+  const group_ids = [...document.querySelectorAll('.g-group-cb:checked')].map(cb => parseInt(cb.value));
+  const body = {
+    name,
+    phone: document.getElementById('g-phone').value,
+    email: document.getElementById('g-email').value,
+    status: document.getElementById('g-status').value,
+    team_id: document.getElementById('g-team').value || null,
+    arrival_date: document.getElementById('g-arrival').value || null,
+    departure_date: document.getElementById('g-departure').value || null,
+    notes: document.getElementById('g-notes').value,
+    group_ids
+  };
+  try {
+    if (editId) await api(`/guests/${editId}`, 'PUT', body);
+    else await api('/guests', 'POST', body);
+    closeModal('guest-modal');
+    toast(editId ? 'Guest updated' : 'Guest added');
+    guests = await api('/guests');
+    renderGuests();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function deleteGuest(id) {
+  if (!confirm('Delete this guest?')) return;
+  await api(`/guests/${id}`, 'DELETE');
+  toast('Guest deleted');
+  guests = await api('/guests');
+  renderGuests();
+}
+
+load();
+</script>
+</body>
+</html>

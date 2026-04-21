@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payments — Bachelor HQ</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="app-layout">
+  <div id="nav-placeholder"></div>
+  <main class="main-content">
+    <div class="page-header">
+      <div><div class="page-title">💰 Payments</div><div class="page-subtitle">Housing + event costs — confirmed guests</div></div>
+    </div>
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stat-card"><div class="stat-value" id="pm-total-owed">—</div><div class="stat-label">Total Owed</div></div>
+      <div class="stat-card green"><div class="stat-value" id="pm-collected">—</div><div class="stat-label">Collected</div></div>
+      <div class="stat-card red"><div class="stat-value" id="pm-remaining">—</div><div class="stat-label">Outstanding</div></div>
+      <div class="stat-card amber"><div class="stat-value" id="pm-unpaid-cnt">—</div><div class="stat-label">Unpaid / Partial</div></div>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Guest</th><th>Housing</th><th>Events</th><th>Total Owed</th><th>Paid</th><th>Remaining</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody id="pay-tbody"><tr><td colspan="8"><div class="empty-state">Loading...</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+<!-- Quick pay modal -->
+<div class="modal-overlay" id="quick-pay-modal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header"><div class="modal-title">Update Payment — <span id="qp-name"></span></div><button class="modal-close" onclick="closeModal('quick-pay-modal')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Owed</label><div id="qp-owed" class="mono text-amber" style="font-size:20px;font-weight:700"></div></div>
+      <div class="form-group full"><label>Amount Paid ($)</label><input id="qp-amount" type="number" step="0.01" min="0"></div>
+      <div class="form-group full"><label>Notes</label><textarea id="qp-notes" style="min-height:60px"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('quick-pay-modal')">Cancel</button>
+      <button class="btn btn-green" onclick="doQuickPay()">Save</button>
+    </div>
+  </div>
+</div>
+<script src="/js/app.js"></script>
+<script>
+checkAuth(); renderNav();
+let payData = [], editGuestId = null;
+
+async function load() {
+  const [hc, evts, guests] = await Promise.all([
+    api('/housing/calculation'), api('/events'), api('/guests')
+  ]);
+
+  // Build event costs per guest
+  const eventCosts = {};
+  for (const evt of evts) {
+    const perPerson = evt.total_cost && evt.guest_count > 0 ? evt.total_cost / evt.guest_count : 0;
+    for (const g of (evt.guests||[])) {
+      eventCosts[g.id] = (eventCosts[g.id]||0) + (g.cost_override !== null ? g.cost_override : perPerson);
+    }
+  }
+
+  const confirmedGuests = (hc.guests || []);
+  payData = confirmedGuests.map(g => {
+    const evtOwed = eventCosts[g.id]||0;
+    const totalOwed = g.calculated + evtOwed;
+    const paid = g.housing_paid||0;
+    const remaining = Math.max(0, totalOwed - paid);
+    const gFull = guests.find(x => x.id === g.id) || g;
+    return { ...g, evtOwed, totalOwed, paid, remaining, payment_notes: gFull.payment_notes };
+  });
+
+  const totalOwed = payData.reduce((s,g) => s + g.totalOwed, 0);
+  const collected = payData.reduce((s,g) => s + g.paid, 0);
+  const outstanding = Math.max(0, totalOwed - collected);
+  const unpaidCnt = payData.filter(g => g.paid < g.totalOwed).length;
+
+  document.getElementById('pm-total-owed').textContent = fmtMoney(totalOwed);
+  document.getElementById('pm-collected').textContent = fmtMoney(collected);
+  document.getElementById('pm-remaining').textContent = fmtMoney(outstanding);
+  document.getElementById('pm-unpaid-cnt').textContent = unpaidCnt;
+
+  renderTable();
+}
+
+function renderTable() {
+  const tbody = document.getElementById('pay-tbody');
+  if (!payData.length) { tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state">No confirmed guests with housing data</div></td></tr>'; return; }
+  tbody.innerHTML = payData.map(g => {
+    const statusBadgeHtml = g.paid >= g.totalOwed && g.totalOwed > 0
+      ? '<span class="badge badge-confirmed">✓ Paid</span>'
+      : g.paid > 0 ? '<span class="badge badge-maybe">Partial</span>'
+      : '<span class="badge badge-cant_make_it">Unpaid</span>';
+    return `
+      <tr>
+        <td><a href="/guest-profile.html?id=${g.id}" style="color:var(--text-1);font-weight:600;text-decoration:none">${g.name}</a>
+          ${g.payment_notes ? `<div style="font-size:11px;color:var(--text-3)">${g.payment_notes}</div>` : ''}
+        </td>
+        <td class="mono text-muted">${fmtMoney(g.calculated)}</td>
+        <td class="mono text-muted">${fmtMoney(g.evtOwed)}</td>
+        <td class="mono text-amber font-bold">${fmtMoney(g.totalOwed)}</td>
+        <td class="mono text-green">${fmtMoney(g.paid)}</td>
+        <td class="mono ${g.remaining > 0 ? 'text-red' : 'text-green'}">${fmtMoney(g.remaining)}</td>
+        <td>${statusBadgeHtml}</td>
+        <td>
+          <div style="display:flex;gap:4px">
+            <button class="btn btn-ghost btn-sm" onclick="quickPay(${g.id})">Update</button>
+            ${g.totalOwed > 0 && g.paid < g.totalOwed ? `<button class="btn btn-green btn-sm" onclick="markFullyPaid(${g.id})">✓ Full</button>` : ''}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function quickPay(gid) {
+  const g = payData.find(x => x.id === gid);
+  if (!g) return;
+  editGuestId = gid;
+  document.getElementById('qp-name').textContent = g.name;
+  document.getElementById('qp-owed').textContent = fmtMoney(g.totalOwed);
+  document.getElementById('qp-amount').value = g.paid || '';
+  document.getElementById('qp-notes').value = g.payment_notes || '';
+  openModal('quick-pay-modal');
+}
+
+async function doQuickPay() {
+  const body = {
+    housing_paid: parseFloat(document.getElementById('qp-amount').value)||0,
+    payment_notes: document.getElementById('qp-notes').value
+  };
+  await api(`/payments/${editGuestId}`, 'PUT', body);
+  closeModal('quick-pay-modal');
+  toast('Payment updated');
+  load();
+}
+
+async function markFullyPaid(gid) {
+  const g = payData.find(x => x.id === gid);
+  if (!g) return;
+  await api(`/payments/${gid}`, 'PUT', { housing_paid: g.totalOwed, payment_notes: g.payment_notes });
+  toast(g.name + ' marked as fully paid');
+  load();
+}
+
+load();
+</script>
+</body>
+</html>

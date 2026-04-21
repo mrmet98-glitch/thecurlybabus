@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Bachelor HQ</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="app-layout">
+  <div id="nav-placeholder"></div>
+  <main class="main-content">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Dashboard</div>
+        <div class="page-subtitle" id="today-date"></div>
+      </div>
+      <div class="flex gap-2">
+        <button class="btn btn-ghost btn-sm" onclick="clearAuth()">Log Out</button>
+      </div>
+    </div>
+
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-card"><div class="stat-value" id="s-total">—</div><div class="stat-label">Total Guests</div></div>
+      <div class="stat-card green"><div class="stat-value" id="s-conf">—</div><div class="stat-label">Confirmed</div></div>
+      <div class="stat-card amber"><div class="stat-value" id="s-maybe">—</div><div class="stat-label">Maybe</div></div>
+      <div class="stat-card red"><div class="stat-value" id="s-cant">—</div><div class="stat-label">Can't Make It</div></div>
+      <div class="stat-card adi"><div class="stat-value" id="s-adi">—</div><div class="stat-label">? Adi</div></div>
+      <div class="stat-card"><div class="stat-value" id="s-arr">—</div><div class="stat-label">Arriving Today</div></div>
+      <div class="stat-card"><div class="stat-value" id="s-dep">—</div><div class="stat-label">Departing Today</div></div>
+      <div class="stat-card"><div class="stat-value" id="s-events">—</div><div class="stat-label">Events Today</div></div>
+      <div class="stat-card red"><div class="stat-value" id="s-unpaid">—</div><div class="stat-label">Unpaid Housing</div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Quick Links</div></div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <a href="/guests.html" class="btn btn-ghost" style="justify-content:flex-start">👤 Manage Guests</a>
+          <a href="/flights.html" class="btn btn-ghost" style="justify-content:flex-start">✈️ Flight Board</a>
+          <a href="/coordination.html" class="btn btn-ghost" style="justify-content:flex-start">🗺️ Flight Coordination</a>
+          <a href="/itinerary.html" class="btn btn-ghost" style="justify-content:flex-start">🗓️ Itinerary</a>
+          <a href="/housing.html" class="btn btn-ghost" style="justify-content:flex-start">🏠 Housing Calc</a>
+          <a href="/payments.html" class="btn btn-ghost" style="justify-content:flex-start">💰 Payments</a>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Trip Status</div></div>
+        <div id="trip-status" style="color:var(--text-2);font-size:13px">Loading...</div>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="/js/app.js"></script>
+<script>
+checkAuth(); renderNav();
+document.getElementById('today-date').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+async function load() {
+  try {
+    const d = await api('/dashboard');
+    document.getElementById('s-total').textContent = d.total;
+    document.getElementById('s-conf').textContent = d.confirmed;
+    document.getElementById('s-maybe').textContent = d.maybe;
+    document.getElementById('s-cant').textContent = d.cantMakeIt;
+    document.getElementById('s-adi').textContent = d.adi;
+    document.getElementById('s-arr').textContent = d.arrivingToday;
+    document.getElementById('s-dep').textContent = d.departingToday;
+    document.getElementById('s-events').textContent = d.eventsToday;
+    document.getElementById('s-unpaid').textContent = d.unpaidCount;
+    document.getElementById('trip-status').innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="flex justify-between"><span>Confirmed guests</span><span class="text-green mono">${d.confirmed}</span></div>
+        <div class="flex justify-between"><span>Maybe guests</span><span class="text-amber mono">${d.maybe}</span></div>
+        <div class="flex justify-between"><span>Can't make it</span><span class="text-red mono">${d.cantMakeIt}</span></div>
+        <div class="flex justify-between"><span style="color:#ff6b6b">? Adi</span><span class="mono" style="color:#ff6b6b">${d.adi}</span></div>
+        <div class="divider"></div>
+        <div class="flex justify-between"><span>Arriving today</span><span class="text-accent mono">${d.arrivingToday}</span></div>
+        <div class="flex justify-between"><span>Departing today</span><span class="text-accent mono">${d.departingToday}</span></div>
+        <div class="flex justify-between"><span>Events today</span><span class="text-accent mono">${d.eventsToday}</span></div>
+      </div>
+    `;
+  } catch(e) { console.error(e); }
+}
+load();
+</script>
+</body>
+</html>
