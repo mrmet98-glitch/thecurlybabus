@@ -78,10 +78,6 @@ function closeModal(id) {
   if (m) { m.classList.remove('open'); document.body.style.overflow = ''; }
 }
 
-function confirm(msg) {
-  return window.confirm(msg);
-}
-
 // Sidebar active link
 document.addEventListener('DOMContentLoaded', () => {
   const path = window.location.pathname;
